@@ -4,12 +4,15 @@ class Environment:
         self.actions = ((-1, 0), (1, 0), (0, -1), (0, 1))
 
     def get_states(self):
+        """Returns all states in the Gridworld."""
         return self.states
 
     def get_actions(self):
+        """Returns all available actions."""
         return self.actions
         
     def get_reward(self, state, action):
+        """Return a numerical reward according to current state and action."""
         next_state = self.get_next_state(state, action)
         if ((next_state[0] == 1) and (next_state[1] == 2)):
             return -1
@@ -20,6 +23,7 @@ class Environment:
         return 0
 
     def get_next_state(self, state, action):
+        """Returns next state according to current state and action."""
         next_state = [(state[0] + action[0]), (state[1] + action[1])]
         if (next_state[0] < 0):
             next_state[0] = 0
@@ -39,6 +43,7 @@ class ValueIteration:
         self.policy_table = [[[0.25] * 4 for _ in range(5)] for _ in range(5)]
 
     def value_iteration(self):
+        """Do a value iteration once."""
         states = self.environment.get_states()
         actions = self.environment.get_actions()
         for row in states:
@@ -53,6 +58,7 @@ class ValueIteration:
                 self.value_table[state[0]][state[1]] = max(action_value)
 
     def policy_determination(self):
+        """Determines a optimal policy given the values of states."""
         states = self.environment.get_states()
         actions = self.environment.get_actions()
         for row in states:
@@ -70,7 +76,22 @@ class ValueIteration:
                     else:
                         self.policy_table[state[0]][state[1]][index] = 0
 
+    def get_difference(self, table1, table2):
+        """Returns 1-norm of a difference between the two value tables."""
+        norm = 0
+        for i in range(5):
+            for j in range(5):
+                norm += abs(table1[i][j] - table2[i][j])
+        return norm
+
+    def get_value(self):
+        """Returns current state-value function for all states."""
+        current_value_table = [[self.value_table[i][j] for j in range(5)] for i in range(5)]
+        return current_value_table
+
     def print_value(self):
+        """Prints values of all states."""
+        print("Value Table")
         for row in self.value_table:
             lst = []
             for value in row:
@@ -78,6 +99,12 @@ class ValueIteration:
             print(lst)
 
     def print_policy(self):
+        """Prints optimal policy of all states.
+        Prints 1 if an agent takes the action.
+        Otherwise prints 0.
+        Order of actions : [up, down, left, right]
+        """
+        print("Optimal Policy")
         for row in self.policy_table:
             lst = []
             for policy in row:
@@ -92,13 +119,25 @@ class ValueIteration:
             print(lst)
 
 
-print("Value Iteration")
-agent = ValueIteration(Environment())
-while True:
-    agent.value_iteration()
-    agent.print_value()
-    command = input("continue(Y/N)?: ")
-    if (command == "N" or command == "n"):
-        break
-agent.policy_determination()
-agent.print_policy()
+def main():
+    print("Value Iteration")
+    agent = ValueIteration(Environment())
+    old_value = agent.get_value()
+    threshold = 0.001
+    max_iteration = 50
+    for cnt in range(max_iteration):
+        print("iteration {}".format(cnt + 1))
+        agent.value_iteration()
+        agent.print_value()
+        new_value = agent.get_value()
+        if (agent.get_difference(new_value, old_value) < threshold):
+            break
+        old_value = new_value
+        if (cnt == 49):
+            print("Iteration Failed")
+    agent.policy_determination()
+    agent.print_policy()
+
+
+if __name__ == "__main__":
+    main()
