@@ -50,6 +50,7 @@ class Sarsa():
         states = self.environment.get_states()
         actions = self.environment.get_actions()
         #state = (0, 0)
+        # Initialize starting state to non-terminating one.
         state = (2, 2)
         while (state == (2, 2)):
             state = states[randrange(5)][randrange(5)]
@@ -69,6 +70,7 @@ class Sarsa():
         """Choose action given the state by using epsilon-greedy policy."""
         action_value = self.q_table[state[0]][state[1]]
         actions = self.environment.get_actions()
+        # Derive an epsilon-greedy policy from the action-value function table.
         policy = [(self.epsilon / len(actions))] * 4
         max_action_value = max(action_value)
         #max_count = action_value.count(max_action_value)
@@ -78,6 +80,7 @@ class Sarsa():
                 #policy[index] = ((1 - (self.epsilon / 4.0) * (4 - max_count)) / float(max_count))
                 index_list.append(index)
         policy[choice(index_list)] = (1 - self.epsilon + self.epsilon / len(actions))
+        # Choose action using the epsilon-greedy policy derived above.
         action_index = 3
         x = random()
         y = 0
@@ -133,6 +136,7 @@ def main():
             print("Iteration Failed")
         old_q_table = new_q_table
     agent.print_q_table()
+
 
 if __name__ == "__main__":
     main()
