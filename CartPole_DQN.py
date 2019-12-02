@@ -24,6 +24,7 @@ class DQN:
         self.target_model = self.build_model()
         self.update()
         self.replay_buffer = deque(maxlen = 2000)
+        self.step_count = 0
 
     def build_model(self):
         model = tf.keras.Sequential()
@@ -35,6 +36,7 @@ class DQN:
         return model
 
     def learn(self):
+        self.step_count += 1
         if (len(self.replay_buffer) < self.minimum_data):
             return
         replays = random.sample(self.replay_buffer, self.batch_size)
@@ -88,6 +90,9 @@ class DQN:
             self.epsilon = temp
         return reward_total
 
+    def get_step_count(self):
+        return self.step_count
+
 
 def main():
     env = gym.make("CartPole-v0")
@@ -96,10 +101,11 @@ def main():
     max_episode = 100
     rewards = []
     reward = 0
+    reward_threshold = ((env.spec.reward_threshold + env.spec.max_episode_steps) / 2.0)
     for i in range(max_iteration):
         reward = agent.run_episode()
         print("Reward of episode {:3}: {}".format((i + 1), reward))
-        if (reward == 200):
+        if (reward > reward_threshold):
             rewards.clear()
             for j in range(max_episode):
                 reward = agent.run_episode(learn = False)
@@ -108,8 +114,8 @@ def main():
                 if (sum(rewards) < (max_episode * (env.spec.reward_threshold + 2 * j - 198))):
                     break
             if (sum(rewards) >= (env.spec.reward_threshold * max_episode)):
-                print("CartPole-v0 solved!")
-                break    
+                print("CartPole-v0 solved in {} steps!".format(agent.get_step_count()))
+                break
     env.close()
 
 if __name__ == "__main__":
