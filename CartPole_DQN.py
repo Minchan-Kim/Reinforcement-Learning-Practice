@@ -1,11 +1,9 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 import gym
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
 import numpy as np
 import random
 from collections import deque
+from google.colab import drive
 
 
 class DQN:
@@ -22,34 +20,40 @@ class DQN:
         self.env = env
         self.model = self.build_model()
         self.target_model = self.build_model()
+        self.optimizer = tf.keras.optimizers.SGD(learning_rate = self.step_size, momentum = 0.5)
         self.update()
         self.replay_buffer = deque(maxlen = 2000)
         self.step_count = 0
-
+ 
     def build_model(self):
         model = tf.keras.Sequential()
-        model.add(layers.InputLayer(input_shape = self.env.observation_space.shape))
-        model.add(layers.Dense(24, activation = "relu"))
-        model.add(layers.Dense(24, activation = "relu"))
-        model.add(layers.Dense(self.env.action_space.n, activation = "linear"))
-        model.compile(optimizer = keras.optimizers.SGD(learning_rate = self.step_size, momentum = 0.5), loss = "mse")
+        model.add(tf.keras.layers.InputLayer(input_shape = self.env.observation_space.shape))
+        model.add(tf.keras.layers.Dense(24, activation = "relu"))
+        model.add(tf.keras.layers.Dense(24, activation = "relu"))
+        model.add(tf.keras.layers.Dense(self.env.action_space.n, activation = "linear"))
         return model
 
+    def grad(self, replays):
+        states = tf.constant([replay[0] for replay in replays], dtype = tf.dtypes.float32)
+        actions = tf.constant([replay[1] for replay in replays], dtype = tf.dtypes.int32)
+        rewards = tf.constant([replay[2] for replay in replays], dtype = tf.dtypes.float32)
+        next_states = tf.constant([replay[3] for replay in replays], dtype = tf.dtypes.float32)
+        dones = tf.constant([replay[4] for replay in replays], dtype = tf.dtypes.float32)
+        with tf.GradientTape() as t:
+            action_values = tf.math.reduce_max(tf.stop_gradient(self.target_model(next_states)), axis = 1)
+            y_true = rewards + self.discount_rate * (action_values * dones)
+            mask = tf.one_hot(indices = actions, depth = self.env.action_space.n)
+            y_pred = tf.math.reduce_sum((self.model(states) * mask), axis = 1)
+            loss = tf.keras.losses.MSE(y_true, y_pred)
+        return t.gradient(loss, self.model.trainable_variables)
+ 
     def learn(self):
         self.step_count += 1
         if (len(self.replay_buffer) < self.minimum_data):
             return
         replays = random.sample(self.replay_buffer, self.batch_size)
-        input_data = np.array([replay[0] for replay in replays])
-        target_data = self.model.predict(input_data)
-        for i in range(self.batch_size):
-            state, action, reward, next_state, done = replays[i]
-            if not done:
-                action_value = np.amax(self.target_model.predict(np.array([next_state]), batch_size = 1)[0])
-                target_data[i, action] = reward + self.discount_rate * action_value
-            else:
-                target_data[i, action] = reward
-        self.model.fit(input_data, target_data, batch_size = self.batch_size, epochs = 1, verbose = 0)
+        grads = self.grad(replays)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
         if (self.epsilon >= self.epsilon_minimum):
             self.epsilon *= self.epsilon_discount_rate
         if (self.target_fix > 0):
@@ -57,17 +61,17 @@ class DQN:
             if (self.target_fix == self.count):
                 self.update()
                 self.count = 0
-
+ 
     def update(self):
         self.target_model.set_weights(self.model.get_weights())
-
+ 
     def take_action(self, state):
         if (random.random() > self.epsilon):
-            return np.argmax(self.model.predict(np.array([state]), batch_size = 1)[0])
+            return np.argmax(((self.model(tf.constant([state]))).numpy())[0, :])
         else:
             return random.randrange(self.env.action_space.n)
-
-    def run_episode(self, learn = True):
+ 
+    def run_episode(self, learn = True, render = False):
         state = self.env.reset()
         reward_total = 0
         temp = 0
@@ -75,9 +79,11 @@ class DQN:
             temp = self.epsilon
             self.epsilon = 0
         while True:
+            if render:
+                self.env.render()
             action = self.take_action(state)
             next_state, reward, done, info = self.env.step(action)
-            self.replay_buffer.append((state, action, reward, next_state, done))
+            self.replay_buffer.append((state, action, reward, next_state, int(not done)))
             reward_total += reward
             if learn:
                 self.learn()
@@ -89,11 +95,16 @@ class DQN:
         if not learn:
             self.epsilon = temp
         return reward_total
-
+ 
+    def save(self):
+        drive.mount('/content/drive')
+        self.model.save_weights('/content/drive/My Drive/CartPole-v0_DQN_weights.h5')
+        drive.flush_and_unmount()
+ 
     def get_step_count(self):
         return self.step_count
-
-
+    
+    
 def main():
     env = gym.make("CartPole-v0")
     agent = DQN(env)
@@ -116,7 +127,9 @@ def main():
             if (sum(rewards) >= (env.spec.reward_threshold * max_episode)):
                 print("CartPole-v0 solved in {} steps!".format(agent.get_step_count()))
                 break
+    #agent.save()
     env.close()
-
+    
+    
 if __name__ == "__main__":
     main()
